@@ -8,7 +8,7 @@ const configs = [
       port: 5432,
       database: "parking_system",
       user: "postgres",
-      password: "admin123",
+      password: "12345679",
     },
   },
   {
