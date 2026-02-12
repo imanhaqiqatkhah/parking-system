@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const { testConnection } = require("./config/database");
 
 // Import routes
@@ -54,5 +55,13 @@ app.use(
     credentials: true,
   }),
 );
+
+const uploadRoutes = require("./routes/upload.routes");
+
+// سرو فایل‌های استاتیک
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
+// روت‌های آپلود
+app.use("/api/upload", uploadRoutes);
 
 module.exports = app;

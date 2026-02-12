@@ -91,43 +91,72 @@ class ParkingLog {
 
   // Get parking statistics
   static async getStats() {
-    const query = `
+    try {
+      const query = `
       SELECT 
-        -- Current parked
         COUNT(CASE WHEN status = 'parked' THEN 1 END) as parked_count,
-        
-        -- Today's entries
         COUNT(CASE WHEN DATE(entry_time) = CURRENT_DATE THEN 1 END) as today_entries,
-        
-        -- Today's revenue
-        COALESCE(SUM(CASE WHEN DATE(exit_time) = CURRENT_DATE AND payment_status = 'paid' THEN fee ELSE 0 END), 0) as today_revenue,
-        
-        -- Total entries this month
-        COUNT(CASE WHEN EXTRACT(MONTH FROM entry_time) = EXTRACT(MONTH FROM CURRENT_DATE) 
-                   AND EXTRACT(YEAR FROM entry_time) = EXTRACT(YEAR FROM CURRENT_DATE) 
-                   THEN 1 END) as month_entries,
-        
-        -- Monthly revenue
-        COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM exit_time) = EXTRACT(MONTH FROM CURRENT_DATE) 
-                          AND EXTRACT(YEAR FROM exit_time) = EXTRACT(YEAR FROM CURRENT_DATE) 
-                          AND payment_status = 'paid' THEN fee ELSE 0 END), 0) as month_revenue,
-        
-        -- Vehicle type distribution
+        COALESCE(SUM(CASE WHEN DATE(exit_time) = CURRENT_DATE AND status = 'exited' THEN fee ELSE 0 END), 0) as today_revenue,
+        COUNT(CASE 
+          WHEN EXTRACT(MONTH FROM entry_time) = EXTRACT(MONTH FROM CURRENT_DATE) 
+          AND EXTRACT(YEAR FROM entry_time) = EXTRACT(YEAR FROM CURRENT_DATE) 
+          THEN 1 END) as month_entries,
+        COALESCE(SUM(CASE 
+          WHEN EXTRACT(MONTH FROM exit_time) = EXTRACT(MONTH FROM CURRENT_DATE) 
+          AND EXTRACT(YEAR FROM exit_time) = EXTRACT(YEAR FROM CURRENT_DATE) 
+          AND status = 'exited' 
+          THEN fee ELSE 0 END), 0) as month_revenue,
+        COUNT(*) as total_entries,
         (
           SELECT JSON_AGG(json_build_object('type', vehicle_type, 'count', count))
           FROM (
-            SELECT v.vehicle_type, COUNT(*)
+            SELECT v.vehicle_type, COUNT(*) as count
             FROM parking_logs p
             JOIN vehicles v ON p.vehicle_id = v.id
             WHERE DATE(p.entry_time) = CURRENT_DATE
             GROUP BY v.vehicle_type
           ) sub
         ) as today_by_type
-        
       FROM parking_logs
     `;
-    const result = await db.query(query);
-    return result.rows[0];
+
+      const result = await db.query(query);
+      console.log("📊 Stats from DB:", result.rows[0]);
+      return result.rows[0];
+    } catch (error) {
+      console.error("Error getting stats:", error);
+      return {
+        parked_count: 0,
+        today_entries: 0,
+        today_revenue: 0,
+        month_entries: 0,
+        month_revenue: 0,
+        total_entries: 0,
+        today_by_type: null,
+      };
+    }
+  }
+
+  static async getDailyRevenue(days = 7) {
+    try {
+      const query = `
+      SELECT 
+        DATE(exit_time) as date,
+        COALESCE(SUM(fee), 0) as revenue,
+        COUNT(*) as exits_count
+      FROM parking_logs
+      WHERE status = 'exited' 
+        AND exit_time >= CURRENT_DATE - INTERVAL '${days} days'
+      GROUP BY DATE(exit_time)
+      ORDER BY DATE(exit_time) DESC
+    `;
+
+      const result = await db.query(query);
+      return result.rows;
+    } catch (error) {
+      console.error("Error getting daily revenue:", error);
+      return [];
+    }
   }
 }
 

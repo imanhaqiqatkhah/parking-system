@@ -199,4 +199,22 @@ router.get("/search", async (req, res) => {
   }
 });
 
+router.get("/daily-revenue", async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const revenue = await ParkingLog.getDailyRevenue(days);
+
+    res.json({
+      success: true,
+      data: revenue,
+    });
+  } catch (error) {
+    console.error("Error getting daily revenue:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
